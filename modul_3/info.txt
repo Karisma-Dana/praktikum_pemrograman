@@ -1,0 +1,13 @@
+tugas algoritma pemgorgaman modul 3
+
+Operasi matrix
+1. penjumlahan matrix
+2. perkalian matrix 
+3. inverst matrix 
+4. matrix transpose 
+5. inner product
+
+syarat : 
+1. ukuran matrix diinpt oleh user 
+2. dynamic array 
+3. 
