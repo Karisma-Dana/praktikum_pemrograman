@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+
 #define BUFFER_SIZE 4096
 
 
@@ -45,7 +46,12 @@ long get_file_size(const char *sourcePath) {
 
 
 void split_file(const char *sourcePath, const char *prefixName) {
-    long fileSize = get_file_size(sourcePath);
+    long fileSize = get_file_size(sourcePath); // ukuran data dalam bentuk bytes
+    // mengecek size file yang akan di split
+    const char *ext = strrchr(sourcePath, '.');
+    if (ext == NULL){
+        ext = "";
+    }
     if (fileSize == -1) {
         printf("Error: File '%s' tidak ditemukan!\n", sourcePath);
         return;
@@ -53,7 +59,7 @@ void split_file(const char *sourcePath, const char *prefixName) {
 
     printf("\nUkuran file asli: %ld bytes (%.2f MB)\n", fileSize, (double)fileSize / (1024 * 1024));
 
-    double userChunkSizeInMB;
+    double userChunkSizeInMB; // untuk simpen ukuran potongan file dalam bentuk MB
     printf("Masukkan ukuran potongan yang diinginkan (dalam MB, misal 0.01): ");
     if (scanf("%lf", &userChunkSizeInMB) != 1) {
         printf("Input harus berupa angka!\n");
@@ -62,24 +68,30 @@ void split_file(const char *sourcePath, const char *prefixName) {
     }
     clear_input_buffer();
 
-    long chunkSizeInBytes = (long)(userChunkSizeInMB * 1024 * 1024);
+    // convert ukuran hasil potongan dari megabytes ke bytes (1mb = 1024 * 1024 )
+    long chunkSizeInBytes = (long)(userChunkSizeInMB * 1024 * 1024); // simpen fizesize dalam bentuk bytes
 
+    // check hasil potongan agar tidak minus 
     if (chunkSizeInBytes <= 0) {
         printf("Error: Ukuran potongan tidak valid!\n");
         return;
     }
+
+    // untuk check hasil potongan ga lebih dari filesize (size file dalam bentuk bytes)
     if (chunkSizeInBytes >= fileSize) {
         printf("Error: Ukuran potongan melebihi ukuran file asli. File tidak perlu dipecah!\n");
         return;
     }
 
-    int totalParts = (fileSize + chunkSizeInBytes - 1) / chunkSizeInBytes;
-    if (totalParts > 7) {
-        printf("Error: Ukuran %.4f MB terlalu kecil! File akan terpecah menjadi %d bagian (Maksimal 7 bagian).\n", userChunkSizeInMB, totalParts);
-        return;
-    }
+    // menentukan total file hasil split
+    int totalParts = (fileSize + chunkSizeInBytes - 1) / chunkSizeInBytes; // untuk mengihindari kesalahan pembagian. misalkan 10 / 3 akan hasilnya file akan terbagi menjadi 4 bagian. intinya untuk pembulatan keatas
+    // if (totalParts > 7) {
+    //     printf("Error: Ukuran %.4f MB terlalu kecil! File akan terpecah menjadi %d bagian (Maksimal 7 bagian).\n", userChunkSizeInMB, totalParts);
+    //     return;
+    // }
+    printf("file akan dipencah menjadi %d\n", totalParts);
 
-    FILE *source = fopen(sourcePath, "rb");
+    FILE *source = fopen(sourcePath, "rb"); // membuka file output
     if (source == NULL) {
         printf("Gagal membuka file asal saat proses pemecahan.\n");
         return;
@@ -92,9 +104,9 @@ void split_file(const char *sourcePath, const char *prefixName) {
 
     printf("\n--- Memulai Proses Split File ---\n");
 
-    while (!feof(source)) {
-        // PEMBARUAN: Format nama file menggunakan prefix kustom dari user
-        sprintf(partName, "%s_part%d.bin", prefixName, partCounter);
+    while (!feof(source)) { // melakukan while loop dari awal file sampai ujung file 
+       
+        sprintf(partName, "%s_part%d.bin", prefixName, partCounter); // mencetak nama file ke partName
 
         FILE *part = fopen(partName, "wb");
         if (part == NULL) {
@@ -104,11 +116,40 @@ void split_file(const char *sourcePath, const char *prefixName) {
         }
 
         size_t totalBytesWrittenToPart = 0;
-        while (totalBytesWrittenToPart < chunkSizeInBytes && 
-              (bytesRead = fread(buffer, 1, sizeof(buffer), source)) > 0) {
+        size_t bytesToRead;
+
+        // Di dalam loop utama split_file, setelah fopen(part, "wb") sukses:
+        if (partCounter == 1) {
+            // Kita buat kesepakatan: 16 byte pertama part 1 khusus untuk string ekstensi
+            char extHeader[16] = {0}; 
+            strncpy(extHeader, ext, sizeof(extHeader) - 1);
             
+            // Tulis 16 byte header ini ke part 1
+            fwrite(extHeader, 1, sizeof(extHeader), part);
+        }
+
+        // ambil satu per satu (sejumlah ukuran buffer) sampai sebanyak chucksizeBytes nya
+        while (totalBytesWrittenToPart < chunkSizeInBytes) {
+            size_t bytesLeft = chunkSizeInBytes - totalBytesWrittenToPart;
+
+            //penyendokan
+            // Jika sisa kuota lebih besar dari gayung (4096), sendok full 4096.
+            // Jika sisa kuota lebih kecil, sendok sejumlah sisa kuotanya saja!. 
+            if (bytesLeft < sizeof(buffer)){
+                bytesToRead = bytesLeft;
+            }else{
+                bytesToRead = sizeof(buffer);
+            }
+
+            bytesRead = fread(buffer, 1, bytesToRead, source);    // mengambil data dari souce sejumlah buffer dan disimpan di variable bytes Read
+
+            if(bytesRead == 0){
+                break;
+            }
+            
+            // menulis dta yang disimpan di bytesRead ke file pecahan yang namanya variable part
             fwrite(buffer, 1, bytesRead, part);
-            totalBytesWrittenToPart += bytesRead;
+            totalBytesWrittenToPart += bytesRead; // update 
         }
         
         printf("Berhasil membuat: %s (%ld bytes)\n", partName, totalBytesWrittenToPart);
@@ -121,43 +162,71 @@ void split_file(const char *sourcePath, const char *prefixName) {
 }
 
 
-void mergeFile(const char *outputPath, const char *prefixName) {
-    FILE *output = fopen(outputPath, "wb");
+void mergeFile(const char *outputDir, const char *prefixName) {
+    char partName[512];
+    char extFormat[16] = {0}; // Wadah untuk menyimpan ekstensi (misal: ".docx")
+    char namaFileLengkap[1024];
+
+    // 1. Buka part 1 terlebih dahulu untuk mengambil header ekstensi
+    sprintf(partName, "%s_part1.bin", prefixName);
+    FILE *part1 = fopen(partName, "rb");
+    if (part1 == NULL) {
+        printf("Gagal: File pecahan pertama (%s) tidak ditemukan!\n", partName);
+        return;
+    }
+
+    // Baca 16 byte pertama dari part 1
+    fread(extFormat, 1, 16, part1);
+    fclose(part1); 
+
+    // 2. Rangkai path output lengkap secara otomatis
+    // Menggabungkan direktori tujuan, nama awalan, kata "_pulih", dan ekstensi aslinya
+    // Contoh hasil: D:\Folder\tugas_uts_pulih.docx
+    sprintf(namaFileLengkap, "%s\\%s_pulih%s", outputDir, prefixName, extFormat);
+
+    FILE *output = fopen(namaFileLengkap, "wb");
     if (output == NULL) {
-        printf("Gagal membuat file output utama: %s\n", outputPath);
+        printf("Gagal membuat file output utama di: %s\n", namaFileLengkap);
         return;
     }
 
     char buffer[BUFFER_SIZE];
-    char partName[512];
     int partCounter = 1;
     size_t bytesRead;
 
     printf("\n--- Memulai Proses Penggabungan File ---\n");
+    printf("Format file asli terdeteksi: %s\n", extFormat[0] != '\0' ? extFormat : "Tidak ada ekstensi");
 
     while (1) {
-
         sprintf(partName, "%s_part%d.bin", prefixName, partCounter);
         
         FILE *part = fopen(partName, "rb");
         if (part == NULL) {
-            break; 
+            break; // Jika part berikutnya tidak ada, hentikan perburuan
         }
 
+        // 3. KHUSUS PART 1: Lewati 16 byte pertama agar header tidak ikut tergabung ke file asli
+        if (partCounter == 1) {
+            fseek(part, 16, SEEK_SET);
+        }
+
+        // Mesin pemindah data
         while ((bytesRead = fread(buffer, 1, sizeof(buffer), part)) > 0) {
             fwrite(buffer, 1, bytesRead, output);
         }
 
-        printf("Menggabungkan %s...\n", partName);
+        printf("Berhasil menggabungkan %s...\n", partName);
         fclose(part);
         partCounter++;
     }
+    
     fclose(output);
     
     if (partCounter == 1) {
-        printf("Gagal: Tidak ada file potongan dengan nama awalan '%s' yang ditemukan.\n", prefixName);
+        printf("Gagal: Terjadi kesalahan saat membaca file pecahan.\n");
+        remove(namaFileLengkap); // Hapus file kosong yang terlanjur dibuat
     } else {
-        printf("Proses penggabungan selesai! File output sukses dipulihkan: %s\n", outputPath);
+        printf("Proses penggabungan selesai! File output sukses dipulihkan: %s\n", namaFileLengkap);
     }
 }
 
@@ -309,7 +378,8 @@ int main() {
                 fgets(namaAwalan, sizeof(namaAwalan), stdin);
                 hapus_newline(namaAwalan);
 
-                printf("Masukkan path lengkap hasil penggabungan (misal: D:\\Folder\\hasil_pulih.docx):\n--> ");
+                // User HANYA perlu memasukkan foldernya saja
+                printf("Masukkan folder tujuan hasil pemulihan (misal: D:\\Folder):\n--> ");
                 fgets(pathTujuan, sizeof(pathTujuan), stdin);
                 hapus_newline(pathTujuan);
 
