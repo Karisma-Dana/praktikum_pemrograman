@@ -133,10 +133,14 @@ int main(){
         tampilkan_menu();
         if (scanf("%d", &pilihan) != 1) {
             printf("Error: Masukkan pilihan berupa angka 1-5!\n");
+            getchar();
+            continue;
         }
+        getchar();
+        
         
 
-        if (pilihan == 5) {
+        if (pilihan == 3) {
             printf("\nTerima kasih, Boss! Program selesai.\n");
             break;
         }
