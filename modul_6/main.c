@@ -9,18 +9,6 @@ typedef struct
     int parent;
 } data_keluarga;
 
-void clear_input_buffer() {
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF);
-}
-
-
-void hapus_newline(char *str) {
-    size_t len = strlen(str);
-    if (len > 0 && str[len - 1] == '\n') {
-        str[len - 1] = '\0';
-    }
-}
 
 void tampilkan_menu() {
     printf("\n=============================================\n");
@@ -48,17 +36,15 @@ void printSilsilah(data_keluarga *db, int n, int parentIndex, int level, char *n
     for (int i = 0; i < n; i++) {
         if (db[i].parent == parentIndex) {
             
-            // Cetak tab
             for (int j = 0; j < level; j++) printf("\t");
             
-            // Jika level 0, dia root. Jika tidak, cetak keterangan anak.
             if (level == 0) {
                 printf("%s (root)\n", db[i].nama);
             } else {
                 printf("%s (anak %s)\n", db[i].nama, namaParent);
             }
             
-            // Panggil fungsi lagi, kirim nama saat ini sebagai nama parent untuk level berikutnya
+            //rekrusif fungsi
             printSilsilah(db, n, i, level + 1, db[i].nama);
         }
     }
@@ -92,6 +78,7 @@ void tampilkanSilsilahJalur(data_keluarga *db, int n, char *cariNama) {
         }
     }
 
+    // penyusunan silsilah urutan
     printf("\nSILSILAH KELUARGA %s (URUTAN)\n", cariNama);
     for (int i = count - 1; i >= 0; i--) {
         printf("%s", db[silsilah[i]].nama);
@@ -146,10 +133,8 @@ int main(){
         tampilkan_menu();
         if (scanf("%d", &pilihan) != 1) {
             printf("Error: Masukkan pilihan berupa angka 1-5!\n");
-            clear_input_buffer();
-            continue;
         }
-        clear_input_buffer(); 
+        
 
         if (pilihan == 5) {
             printf("\nTerima kasih, Boss! Program selesai.\n");
@@ -160,7 +145,6 @@ int main(){
         {
         case  1:
             printf("\n--- Silsilah Keluarga ---\n");
-            // Kita kirim "" sebagai nama parent awal karena root tidak punya nama parent
             printSilsilah(database, n, -1, 0, "");
             break;
         case 2:
